@@ -58,3 +58,8 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# SSL
+server.crt
+server.csr
+server.key

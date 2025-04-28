@@ -1,27 +1,43 @@
-# Cinema 3 - Microservices in Python
+# Cinema 3: A Movie Theater Microservices Project 🎬
 
-A modern Python microservices example project for a movie theater system. The backend consists of 4 microservices built with Flask:
+Welcome to the **Cinema 3** project!
+Here, we bring movie magic to life with microservices powered by Python and Flask. 🍿✨
+This project demonstrates how to set up multiple Flask services, load balance with NGINX, and much more!
 
-* **Movie Service** (port 5001): Movie information (ratings, title, etc.)
-* **Show Times Service** (port 5002): Movie showing schedules
-* **Booking Service** (port 5003): Booking information
-* **Users Service** (port 5000): User information and movie suggestions
+---
 
-## Architecture Diagram
-![Architecture Diagram](diagram.png)
+## 🎯 What is Cinema 3?
 
-## Requirements
+Cinema 3 is a fictional movie theater system that uses Flask-based microservices
+to manage and display movie info, showtimes, bookings, and user recommendations.
+It’s a **production-ready** example of how you might deploy a movie-related web application in the real world. 🌍
 
-* Python 3.x
-* pip (Python package installer)
-* Linux/Unix environment (Ubuntu/Debian recommended)
+---
 
-## Installation
+## 🚀 Features
 
-1. Clone the repository:
+Here’s what this setup does:
+
+- **Movie Service**: Provides movie data (titles, ratings, etc.). 🍿
+- **Showtimes Service**: Displays showtimes for each movie. 🎥
+- **Booking Service**: Provides bookings and reservation details. 📅
+- **Users Service**: Recommends movies to users. 🎬
+- **UI Service**: Displays a neat simple dashboard to users with all the movie and booking info. 🖥️
+
+---
+
+## ⚙️ Setup Instructions
+
+To get Cinema 3 up and running, you need to set up your Flask services and NGINX configuration.
+Here's how to do it!
+
+1. Clone the Repository
+
+Start by cloning the Cinema 3 project repo:
+
 ```bash
-git clone <repository-url>
-cd microservices
+git clone git@github.com:HaddarD/microservices-python-app.git
+cd microservices-python-app
 ```
 
 2. Install dependencies:
@@ -29,16 +45,89 @@ cd microservices
 make install
 ```
 
-## Running the Services
+3. Nginx Configuration
+```bash
+sudo nano /etc/nginx/nginx.conf
+```
+Copy the content of the `NginxConfSampleCode.txt` from this repo into the bottom of your `nginx.conf` file.
+* I highly recommand to `sudo cp nginx.conf nginx.conf.org`
+in order to maintain a clean copy of the original configuration file.
+
+4. Custom HTML
+```bash
+sudo nano /usr/share/nginx/html/403.html
+```
+Paste this content into the new HTML file:
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oops! 403 Forbidden</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            color: #333;
+            text-align: center;
+            padding: 50px;
+        }
+        h1 {
+            font-size: 72px;
+            color: #ff6347;
+        }
+        p {
+            font-size: 24px;
+        }
+        .smile {
+            font-size: 48px;
+            color: #ff6347;
+        }
+        .sad-face {
+            font-size: 48px;
+            color: #808080;
+        }
+        .container {
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Oops! 403 Forbidden 😱</h1>
+    <p>Looks like you're trying to access something you're not allowed to see... 🙈</p>
+    <div class="container">
+        <p class="sad-face">😞</p>
+        <p>But don't worry, you can always try again somewhere else! 👇</p>
+        <p class="smile">😊</p>
+    </div>
+
+    <footer>
+        <p>We love you, but not your access rights! 😜</p>
+    </footer>
+
+</body>
+</html>
+```
+
+5. Create an SSL
+```bash
+openssl genpkey -algorithm RSA -out server.key
+openssl req -new -key server.key -out server.csr
+openssl x509 -req -in server.csr -signkey server.key -out server.crt
+```
+
+6. Running the Services
 
 You have two options to run the services:
 
-### Option 1: Run All Services at Once
+Option 1: Run All Services at Once
 ```bash
 make run-all
 ```
 
-### Option 2: Run Services Individually
+Option 2: Run Services Individually
 ```bash
 make run-movies     # Movies service on port 5001
 make run-showtimes  # Showtimes service on port 5002
@@ -53,56 +142,7 @@ make stop-all
 
 ## Testing the Services
 
-You can test the services using curl commands or your web browser:
-
-### 1. Movies Service (Port 5001)
-```bash
-# Get all movies
-curl http://127.0.0.1:5001/movies
-
-# Get specific movie
-curl http://127.0.0.1:5001/movies/267eedb8-0f5d-42d5-8f43-72426b9fb3e6
-```
-
-### 2. Showtimes Service (Port 5002)
-```bash
-# Get all showtimes
-curl http://127.0.0.1:5002/showtimes
-
-# Get movies for a specific date
-curl http://127.0.0.1:5002/showtimes/20151130
-```
-
-### 3. Bookings Service (Port 5003)
-```bash
-# Get all bookings
-curl http://127.0.0.1:5003/bookings
-
-# Get user bookings
-curl http://127.0.0.1:5003/bookings/chris_rivers
-```
-
-### 4. Users Service (Port 5000)
-```bash
-# Get all users
-curl http://127.0.0.1:5000/users
-
-# Get user details
-curl http://127.0.0.1:5000/users/chris_rivers
-
-# Get movie suggestions for user
-curl http://127.0.0.1:5000/users/chris_rivers/suggested
-```
-
-### UI Service (Port 5004)
-The UI Service provides a modern web interface to interact with all other services.
-
-#### Features:
-- Service Status Dashboard
-- Movie Catalog with Ratings
-- Interactive Showtime Schedule
-- User Management Interface
-- Booking Management System
+For all the testing commands and browser links follow the instructions in: the [Testing Guide](testing-guide.md)
 
 #### Endpoints:
 - `GET /` - Dashboard showing all services status
@@ -111,10 +151,60 @@ The UI Service provides a modern web interface to interact with all other servic
 - `GET /users` - User management
 - `GET /bookings/<username>` - View user bookings
 
-#### Screenshots:
-![Dashboard](screenshots/dashboard.png)
 
-## API Documentation
+# API Documentation
+
+## 📁 Project Structure
+```
+.
+├── database
+│   ├── bookings.json
+│   ├── movies.json
+│   ├── showtimes.json
+│   └── users.json
+├── diagram.mmd
+├── diagram.png
+├── docker-compose.yml
+├── images
+├── makefile
+├── README.md
+├── reflection.md
+├── requirements.txt
+├── screenshots
+│   └── dashboard.png
+├── NginxConfSampleCode.txt
+├── services
+│   ├── bookings.py
+│   ├── init.py
+│   ├── movies.py
+│   ├── pycache
+│   │   ├── bookings.cpython-313.pyc
+│   │   ├── init.cpython-313.pyc
+│   │   ├── movies.cpython-313.pyc
+│   │   ├── showtimes.cpython-313.pyc
+│   │   ├── ui.cpython-313.pyc
+│   │   └── user.cpython-313.pyc
+│   ├── showtimes.py
+│   ├── static
+│   │   └── style.css
+│   ├── templates
+│   │   ├── base.html
+│   │   ├── bookings.html
+│   │   ├── error.html
+│   │   ├── index.html
+│   │   ├── movies.html
+│   │   ├── showtimes.html
+│   │   └── users.html
+│   ├── ui.py
+│   └── user.py
+├── setup.py
+├── testing-guide.md
+└── tests
+    ├── bookings.py
+    ├── movies.py
+    ├── showtimes.py
+    └── user.py
+```
 
 ### Movie Service
 - `GET /movies`: Returns a list of all movies
@@ -177,7 +267,7 @@ Example response:
 
 1. If services fail to start, check if the ports are already in use:
 ```bash
-sudo lsof -i :5000-5003
+sudo lsof -i :5000-5005
 ```
 
 2. If you can't access the services, verify they're running:
@@ -204,6 +294,5 @@ Clean up cache files:
 make clean
 ```
 
-## Architecture
-
-The services communicate with each other using REST APIs. The Users service aggregates data from other services to provide features like movie suggestions based on user booking history and movie ratings.
+## Reflections
+[Work Process Reflections](reflection.md)

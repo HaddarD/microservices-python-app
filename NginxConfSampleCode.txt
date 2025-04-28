@@ -1,0 +1,180 @@
+server {
+    listen 80;
+
+    # Routing for UI service
+    location / {
+        proxy_pass http://localhost:5004;
+    }
+
+    # Routing for Movies service
+    location /movies/ {
+        proxy_pass http://localhost:5001;
+    }
+
+    # Routing for Showtimes service
+    location /showtimes/ {
+        proxy_pass http://localhost:5002;
+    }
+
+    # Routing for Bookings service
+    location /bookings/ {
+        proxy_pass http://localhost:5003;
+    }
+
+    # Routing for Users service
+    location /users/ {
+        proxy_pass http://localhost:5000;
+    }
+}
+
+
+http {
+    limit_req_zone $binary_remote_addr zone=one:10m rate=5r/s;
+
+    log_format rate_limit_log '$remote_addr - $remote_user [$time_local] "$request" '
+                              '$status $body_bytes_sent "$http_referer" '
+                              '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log /var/log/nginx/rate_limit.log rate_limit_log;
+
+
+    server {
+        listen 80;
+
+        # Rate limiting for /users/
+        location /users/ {
+            limit_req zone=one burst=10 nodelay;
+            proxy_pass http://localhost:5000;
+        }
+    }
+}
+
+
+http {
+    upstream movies_backend {
+        server localhost:5001;
+        server localhost:5005;
+    }
+
+    server {
+        listen 80;
+
+        location /movies/ {
+            proxy_pass http://movies_backend;
+        }
+    }
+}
+
+
+http {
+    upstream showtimes_backend {
+        server localhost:5002;
+        server localhost:5006 backup;
+    }
+
+    server {
+        listen 80;
+
+        location /showtimes/ {
+            proxy_pass http://showtimes_backend;
+        }
+    }
+}
+
+
+server {
+    listen 80;
+
+    location /showtimes/ {
+        proxy_cache showtimes_cache;
+        proxy_cache_valid 200 30s;
+        proxy_cache_use_stale error timeout updating;
+        proxy_pass http://localhost:5002;
+    }
+}
+
+# Cache settings
+proxy_cache_path /tmp/cache keys_zone=showtimes_cache:10m;
+
+
+server {
+    listen 80;
+
+    # Block IP range
+    deny 192.168.56.0/24;
+    allow all;
+
+    location / {
+        proxy_pass http://localhost:5004;
+    }
+}
+
+
+server {
+    listen 80;
+
+    location / {
+        proxy_pass http://localhost:5004;
+    }
+
+    error_page 403 /403.html;
+    location = /403.html {
+        root /usr/share/nginx/html;
+        internal;
+    }
+}
+
+
+server {
+    listen 80;
+    server_name localhost;
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+
+    ssl_certificate /path/to/server.crt;
+    ssl_certificate_key /path/to/server.key;
+
+    location / {
+        proxy_pass http://localhost:5004;
+    }
+}
+
+
+http {
+    upstream movies_backend {
+        least_conn;
+        server localhost:5001;
+        server localhost:5005;
+    }
+
+    server {
+        listen 80;
+
+        location /movies/ {
+            proxy_pass http://movies_backend;
+        }
+    }
+}
+
+
+http {
+    upstream movies_backend {
+        ip_hash;
+        server localhost:5001;
+        server localhost:5005;
+    }
+
+    server {
+        listen 80;
+
+        location /movies/ {
+            proxy_pass http://movies_backend;
+        }
+    }
+}
