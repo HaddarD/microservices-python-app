@@ -45,71 +45,23 @@ cd microservices-python-app
 make install
 ```
 
-3. Nginx Configuration
+3. Nginx Configuration\
+I highly recommend that you create a backup for your original `nginx.conf` file
+```bash
+sudo cp /etc/nginx/nginx.conf /etc/nginx/nginxOrg.conf
+```
+Replace the content of your  `nginx.conf` file with the content of `NginxConfSampleCode.txt` from this repo\
+**Make sure you change the location of your `server.crt` and `server.key` in `nginx.conf`**
 ```bash
 sudo nano /etc/nginx/nginx.conf
 ```
-Copy the content of the `NginxConfSampleCode.txt` from this repo into the bottom of your `nginx.conf` file.
-* I highly recommand to `sudo cp nginx.conf nginx.conf.org`
-in order to maintain a clean copy of the original configuration file.
 
 4. Custom HTML
 ```bash
 sudo nano /usr/share/nginx/html/403.html
 ```
-Paste this content into the new HTML file:
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oops! 403 Forbidden</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
-            color: #333;
-            text-align: center;
-            padding: 50px;
-        }
-        h1 {
-            font-size: 72px;
-            color: #ff6347;
-        }
-        p {
-            font-size: 24px;
-        }
-        .smile {
-            font-size: 48px;
-            color: #ff6347;
-        }
-        .sad-face {
-            font-size: 48px;
-            color: #808080;
-        }
-        .container {
-            margin-top: 30px;
-        }
-    </style>
-</head>
-<body>
+Paste the content of the `403.html` file from this repo:
 
-    <h1>Oops! 403 Forbidden 😱</h1>
-    <p>Looks like you're trying to access something you're not allowed to see... 🙈</p>
-    <div class="container">
-        <p class="sad-face">😞</p>
-        <p>But don't worry, you can always try again somewhere else! 👇</p>
-        <p class="smile">😊</p>
-    </div>
-
-    <footer>
-        <p>We love you, but not your access rights! 😜</p>
-    </footer>
-
-</body>
-</html>
-```
 
 5. Create an SSL
 ```bash
@@ -130,7 +82,9 @@ make run-all
 Option 2: Run Services Individually
 ```bash
 make run-movies     # Movies service on port 5001
+make run-movies-secondary # Movies service on port 5005 (backend for least connection)
 make run-showtimes  # Showtimes service on port 5002
+make run-showtimes-secondary # Showtimes service on port 5006 (backup)
 make run-bookings   # Bookings service on port 5003
 make run-users      # Users service on port 5000
 ```
@@ -138,6 +92,56 @@ make run-users      # Users service on port 5000
 To stop all services:
 ```bash
 make stop-all
+```
+
+7. NGINX
+
+verify nginx is running smoothly:
+```bash
+sudo nginx -t
+```
+Start nginx
+```bash
+sudo systemctl start nginx
+```
+Or
+```bash
+sudo nginx -s reload
+```
+
+## Troubleshooting
+
+1. If services fail to start, check if the ports are already in use:
+```bash
+sudo lsof -i :5000-5006 -i :80 -i :8080 -i :8443
+```
+* If any port is accupied clear it with:
+```bash
+sudo fuser -k 5000/tcp 5001/tcp 5002/tcp 5003/tcp 5004/tcp 5005/tcp 5006/tcp 80/tcp 8080/tcp 8443/tcp
+```
+
+2. If you can't access the services, verify they're running:
+```bash
+ps aux | grep "python3 -m services"
+```
+
+3. To view service logs, check the terminal where you started the services
+
+## Development Commands
+
+Format code:
+```bash
+make format
+```
+
+Run linter:
+```bash
+make lint
+```
+
+Clean up cache files:
+```bash
+make clean
 ```
 
 ## Testing the Services
@@ -150,61 +154,6 @@ For all the testing commands and browser links follow the instructions in: the [
 - `GET /showtimes` - View movie schedules
 - `GET /users` - User management
 - `GET /bookings/<username>` - View user bookings
-
-
-# API Documentation
-
-## 📁 Project Structure
-```
-.
-├── database
-│   ├── bookings.json
-│   ├── movies.json
-│   ├── showtimes.json
-│   └── users.json
-├── diagram.mmd
-├── diagram.png
-├── docker-compose.yml
-├── images
-├── makefile
-├── README.md
-├── reflection.md
-├── requirements.txt
-├── screenshots
-│   └── dashboard.png
-├── NginxConfSampleCode.txt
-├── services
-│   ├── bookings.py
-│   ├── init.py
-│   ├── movies.py
-│   ├── pycache
-│   │   ├── bookings.cpython-313.pyc
-│   │   ├── init.cpython-313.pyc
-│   │   ├── movies.cpython-313.pyc
-│   │   ├── showtimes.cpython-313.pyc
-│   │   ├── ui.cpython-313.pyc
-│   │   └── user.cpython-313.pyc
-│   ├── showtimes.py
-│   ├── static
-│   │   └── style.css
-│   ├── templates
-│   │   ├── base.html
-│   │   ├── bookings.html
-│   │   ├── error.html
-│   │   ├── index.html
-│   │   ├── movies.html
-│   │   ├── showtimes.html
-│   │   └── users.html
-│   ├── ui.py
-│   └── user.py
-├── setup.py
-├── testing-guide.md
-└── tests
-    ├── bookings.py
-    ├── movies.py
-    ├── showtimes.py
-    └── user.py
-```
 
 ### Movie Service
 - `GET /movies`: Returns a list of all movies
@@ -263,36 +212,70 @@ Example response:
 }
 ```
 
-## Troubleshooting
 
-1. If services fail to start, check if the ports are already in use:
-```bash
-sudo lsof -i :5000-5005
+## 📁 Project Structure
+```
+.
+├── 403.html
+├── database
+│   ├── bookings.json
+│   ├── movies.json
+│   ├── showtimes.json
+│   └── users.json
+├── diagram.mmd
+├── diagram.png
+├── docker-compose.yml
+├── images
+├── makefile
+├── NginxConfSampleCode.txt
+├── README.md
+├── reflection.md
+├── requirements.txt
+├── screenshots
+│   └── dashboard.png
+├── server.crt
+├── server.csr
+├── server.key
+├── services
+│   ├── bookings.py
+│   ├── __init__.py
+│   ├── movies.py
+│   ├── __pycache__
+│   │   ├── bookings.cpython-313.pyc
+│   │   ├── __init__.cpython-313.pyc
+│   │   ├── movies.cpython-313.pyc
+│   │   ├── showtimes.cpython-313.pyc
+│   │   ├── ui.cpython-313.pyc
+│   │   └── user.cpython-313.pyc
+│   ├── showtimes.py
+│   ├── static
+│   │   └── style.css
+│   ├── templates
+│   │   ├── base.html
+│   │   ├── bookings.html
+│   │   ├── error.html
+│   │   ├── index.html
+│   │   ├── movies.html
+│   │   ├── showtimes.html
+│   │   └── users.html
+│   ├── ui.py
+│   └── user.py
+├── setup.py
+├── testing-guide.md
+└── tests
+    ├── __pycache__
+    │   ├── test_bookings.cpython-313-pytest-8.3.5.pyc
+    │   ├── test_movies.cpython-313-pytest-8.3.5.pyc
+    │   ├── test_showtimes.cpython-313-pytest-8.3.5.pyc
+    │   └── test_user.cpython-313-pytest-8.3.5.pyc
+    ├── test_bookings.py
+    ├── test_movies.py
+    ├── test_showtimes.py
+    └── test_user.py
+
 ```
 
-2. If you can't access the services, verify they're running:
-```bash
-ps aux | grep "python3 -m services"
-```
 
-3. To view service logs, check the terminal where you started the services
-
-## Development Commands
-
-Format code:
-```bash
-make format
-```
-
-Run linter:
-```bash
-make lint
-```
-
-Clean up cache files:
-```bash
-make clean
-```
 
 ## Reflections
 [Work Process Reflections](reflection.md)

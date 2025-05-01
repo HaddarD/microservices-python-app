@@ -1,6 +1,7 @@
 from typing import Dict, Any
 from pathlib import Path
 import json
+import os
 from flask import Flask, jsonify
 from werkzeug.exceptions import NotFound
 from services import root_dir, nice_json
@@ -42,16 +43,27 @@ def movie_info(movieid: str) -> Dict[str, Any]:
 
     result = movies[movieid].copy()
     result["uri"] = f"/movies/{movieid}"
+    result["port"] = request.environ.get("SERVER_PORT", "unknown")
     return result
+
+from flask import request
 
 @app.route("/movies", methods=['GET'])
 def movie_record() -> Dict[str, Any]:
     """Get all movies"""
-    return movies
+    result = movies.copy()
+    # Add port to response for testing
+    result["port"] = os.environ.get("PORT", "5001")
+    return result
+
 
 def main() -> None:
     """Main entry point for the application"""
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    # Get port from environment variable or use default
+    port = int(os.environ.get("PORT", 5001))
+
+    print(f"Starting Movies service on port {port}")
+    app.run(host="0.0.0.0", port=port, debug=True)
 
 if __name__ == "__main__":
     main()

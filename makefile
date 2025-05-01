@@ -13,8 +13,16 @@ test:
 run-movies:
 	python3 -m services.movies
 
+# Additional movies instance on port 5005
+run-movies-secondary:
+	PORT=5005 python3 -m services.movies
+
 run-showtimes:
 	python3 -m services.showtimes
+
+# Additional showtimes instance on port 5006
+run-showtimes-secondary:
+	PORT=5006 python3 -m services.showtimes
 
 run-bookings:
 	python3 -m services.bookings
@@ -25,9 +33,12 @@ run-user:
 run-ui:
 	python3 -m services.ui
 
+# New command for running all services including secondary instances
 run-all:
 	python3 -m services.movies & \
+	PORT=5005 python3 -m services.movies & \
 	python3 -m services.showtimes & \
+	PORT=5006 python3 -m services.showtimes & \
 	python3 -m services.bookings & \
 	python3 -m services.user & \
 	python3 -m services.ui

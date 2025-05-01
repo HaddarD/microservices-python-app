@@ -1,6 +1,7 @@
 from typing import Dict, Any, List
 from pathlib import Path
 import json
+import os
 from flask import Flask
 from werkzeug.exceptions import NotFound
 from services import root_dir, nice_json
@@ -39,16 +40,30 @@ def showtimes_by_date(date: str) -> List[str]:
     if date not in showtimes:
         app.logger.warning(f"No showtimes found for date {date}")
         raise NotFound(description=f"No showtimes found for date {date}")
-    return showtimes[date]
+    return {
+        "port": request.environ.get("SERVER_PORT", "unknown"),
+        "showtimes": showtimes[date]
+    }
+
+from flask import request
 
 @app.route("/showtimes", methods=['GET'])
-def showtimes_list() -> Dict[str, List[str]]:
+def showtimes_list() -> Dict[str, Any]:
     """Get all showtimes"""
-    return showtimes
+    port = request.environ.get("SERVER_PORT", "unknown")
+    return {
+        "port": port,
+        "showtimes": showtimes
+    }
+
 
 def main() -> None:
     """Main entry point for the application"""
-    app.run(host="0.0.0.0", port=5002, debug=True)
+    # Get port from environment variable or use default
+    port = int(os.environ.get("PORT", 5002))
+
+    print(f"Starting Showtimes service on port {port}")
+    app.run(host="0.0.0.0", port=port, debug=True)
 
 if __name__ == "__main__":
     main()

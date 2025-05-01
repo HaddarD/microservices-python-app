@@ -1,180 +1,255 @@
-server {
-    listen 80;
+user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
 
-    # Routing for UI service
-    location / {
-        proxy_pass http://localhost:5004;
-    }
-
-    # Routing for Movies service
-    location /movies/ {
-        proxy_pass http://localhost:5001;
-    }
-
-    # Routing for Showtimes service
-    location /showtimes/ {
-        proxy_pass http://localhost:5002;
-    }
-
-    # Routing for Bookings service
-    location /bookings/ {
-        proxy_pass http://localhost:5003;
-    }
-
-    # Routing for Users service
-    location /users/ {
-        proxy_pass http://localhost:5000;
-    }
+events {
+    worker_connections 768;
+    # multi_accept on;
 }
 
-
 http {
-    limit_req_zone $binary_remote_addr zone=one:10m rate=5r/s;
 
+    real_ip_header X-Forwarded-For;
+    real_ip_recursive on;
+
+    # Cache settings
+    proxy_cache_path /tmp/cache keys_zone=showtimes_cache:10m;
+    ##
+    # Basic Settings
+    ##
+    sendfile on;
+    tcp_nopush on;
+    types_hash_max_size 2048;
+    # server_tokens off;
+    # server_names_hash_bucket_size 64;
+    # server_name_in_redirect off;
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    ##
+    # SSL Settings
+    ##
+    ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3; # Dropping SSLv3, ref: POODLE
+    ssl_prefer_server_ciphers on;
+
+    ##
+    # Logging Settings
+    ##
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+
+    ##
+    # Rate Limiting Settings
+    ##
+    limit_req_zone $binary_remote_addr zone=one:10m rate=5r/s;
     log_format rate_limit_log '$remote_addr - $remote_user [$time_local] "$request" '
                               '$status $body_bytes_sent "$http_referer" '
                               '"$http_user_agent" "$http_x_forwarded_for"';
-
     access_log /var/log/nginx/rate_limit.log rate_limit_log;
 
+    ##
+    # Gzip Settings
+    ##
+    gzip on;
+    # gzip_vary on;
+    # gzip_proxied any;
+    # gzip_comp_level 6;
+    # gzip_buffers 16 8k;
+    # gzip_http_version 1.1;
+    # gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
 
-    server {
-        listen 80;
-
-        # Rate limiting for /users/
-        location /users/ {
-            limit_req zone=one burst=10 nodelay;
-            proxy_pass http://localhost:5000;
-        }
+    ##
+    # Upstream Configurations
+    ##
+    # Movies backend with ip_hash for session persistence (Task 8 bonus option)
+    upstream movies_backend_iphash {
+        ip_hash; # Useful for session persistence - ensures same client always goes to same server
+        server 127.0.0.1:5001;
+        server 127.0.0.1:5005;
     }
-}
 
-
-http {
-    upstream movies_backend {
-        server localhost:5001;
-        server localhost:5005;
+    # Movies backend with least_conn (Task 8 primary option)
+    upstream movies_backend_leastconn {
+        least_conn; # Sends requests to server with fewest active connections
+        server 127.0.0.1:5001;
+        server 127.0.0.1:5005;
     }
 
-    server {
-        listen 80;
-
-        location /movies/ {
-            proxy_pass http://movies_backend;
-        }
-    }
-}
-
-
-http {
+    # Showtimes backend with backup server
     upstream showtimes_backend {
-        server localhost:5002;
-        server localhost:5006 backup;
+        server 127.0.0.1:5002 max_fails=1 fail_timeout=1s;
+        server 127.0.0.1:5006 backup;
     }
 
+
+    ##
+    # Virtual Host Configs
+    ##
+
+#    include /etc/nginx/conf.d/*.conf;
+#    include /etc/nginx/sites-enabled/*;
+
+    # Main server block for microservices
     server {
         listen 80;
 
-        location /showtimes/ {
+        # Block specific IP range
+        if ($http_x_forwarded_for ~ "^192\.168\.56\.") {
+            return 403;
+        }
+
+        # Routing for UI service
+        location / {
+            proxy_pass http://127.0.0.1:5004;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # Routing for Movies service (Task 3 & 8)
+        location /movies {
+            # Use ip_hash load balancing (useful for session persistence)
+            proxy_pass http://movies_backend_iphash/movies;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # Alternative route for movies service with least_conn algorithm
+        location /movies-leastconn {
+            # Use least connections load balancing
+            proxy_pass http://movies_backend_leastconn/movies;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # Routing for Showtimes service with caching (Task 5)
+        location /showtimes {
             proxy_pass http://showtimes_backend;
+            # Add lower timeouts to detect failures faster
+            proxy_connect_timeout 1s;
+            proxy_read_timeout 2s;
+            # Proxy Headers
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            # Cache Settings
+            proxy_cache showtimes_cache;
+            proxy_cache_valid 200 30s;
+            proxy_cache_use_stale error timeout updating;
+            add_header Cache-Control "public, max-age=30";
+            add_header Expires "30s";
+        }
+
+        # Routing for Bookings service
+        location /bookings {
+            proxy_pass http://127.0.0.1:5003;
+            # Proxy Headers
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # Routing for Users service with rate limiting (Task 2)
+        location /users {
+            limit_req zone=one burst=10 nodelay;
+            limit_req_status 429; # Return 429 Too Many Requests when rate limit exceeded
+            proxy_pass http://127.0.0.1:5000;
+            # Proxy Headers
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # Custom error page
+        error_page 403 /403.html;
+        location = /403.html {
+            root /usr/share/nginx/html;
+            internal;
         }
     }
-}
 
-
-server {
-    listen 80;
-
-    location /showtimes/ {
-        proxy_cache showtimes_cache;
-        proxy_cache_valid 200 30s;
-        proxy_cache_use_stale error timeout updating;
-        proxy_pass http://localhost:5002;
-    }
-}
-
-# Cache settings
-proxy_cache_path /tmp/cache keys_zone=showtimes_cache:10m;
-
-
-server {
-    listen 80;
-
-    # Block IP range
-    deny 192.168.56.0/24;
-    allow all;
-
-    location / {
-        proxy_pass http://localhost:5004;
-    }
-}
-
-
-server {
-    listen 80;
-
-    location / {
-        proxy_pass http://localhost:5004;
-    }
-
-    error_page 403 /403.html;
-    location = /403.html {
-        root /usr/share/nginx/html;
-        internal;
-    }
-}
-
-
-server {
-    listen 80;
-    server_name localhost;
-
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-server {
-    listen 443 ssl;
-
-    ssl_certificate /path/to/server.crt;
-    ssl_certificate_key /path/to/server.key;
-
-    location / {
-        proxy_pass http://localhost:5004;
-    }
-}
-
-
-http {
-    upstream movies_backend {
-        least_conn;
-        server localhost:5001;
-        server localhost:5005;
-    }
-
+    # HTTPS redirect server
     server {
-        listen 80;
+        listen 8080;
+        server_name localhost;
 
-        location /movies/ {
-            proxy_pass http://movies_backend;
+        location / {
+            return 301 https://$host:8443$request_uri;
         }
     }
-}
 
-
-http {
-    upstream movies_backend {
-        ip_hash;
-        server localhost:5001;
-        server localhost:5005;
-    }
-
+    # HTTPS server
     server {
-        listen 80;
+        listen 8443 ssl;
+        ssl_certificate /home/hemla/DevOps/Class_Exercises/2025.03.24/NginxFinalProject/microservices-python-app/server.crt;
+        ssl_certificate_key /home/hemla/DevOps/Class_Exercises/2025.03.24/NginxFinalProject/microservices-python-app/server.key;
 
-        location /movies/ {
-            proxy_pass http://movies_backend;
+        location / {
+            proxy_pass http://127.0.0.1:5004;
+            # Proxy Headers
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        # Additional routes for HTTPS server
+        location /movies {
+            proxy_pass http://movies_backend_iphash/movies;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        location /showtimes {
+            proxy_pass http://showtimes_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_cache showtimes_cache;
+            proxy_cache_valid 200 30s;
+            proxy_cache_use_stale error timeout updating;
+            add_header Cache-Control "public, max-age=30";
+            add_header Expires "30s";
+        }
+
+        location /users {
+            limit_req zone=one burst=10 nodelay;
+            limit_req_status 429;
+            proxy_pass http://127.0.0.1:5000;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
+        location /bookings {
+            proxy_pass http://127.0.0.1:5003;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         }
     }
 }
+
+#mail {
+#    # See sample authentication script at:
+#    # http://wiki.nginx.org/ImapAuthenticateWithApachePhpScript
+#
+#    # auth_http localhost/auth.php;
+#    # pop3_capabilities "TOP" "USER";
+#    # imap_capabilities "IMAP4rev1" "UIDPLUS";
+#
+#    server {
+#        listen     localhost:110;
+#        protocol   pop3;
+#        proxy      on;
+#    }
+#
+#    server {
+#        listen     localhost:143;
+#        protocol   imap;
+#        proxy      on;
+#    }
+#}
