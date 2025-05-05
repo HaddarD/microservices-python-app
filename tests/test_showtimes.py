@@ -27,13 +27,6 @@ class TestShowTimesService(unittest.TestCase):
                 self.assertIn(item, expected,
                               "{} was not in the expected response".format(item))
 
-            # For problematic dates, check that all returned items are in the expected list
-            # instead of checking for exact match
-            for item in actual_reply:
-                self.assertIn(item, expected,
-                              "{} was not in the expected response".format(item))
-
-
     def test_not_found(self):
         """ Test /showtimes/<date> for non-existent dates"""
         invalid_date = 20490101
