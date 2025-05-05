@@ -12,12 +12,20 @@ class TestShowTimesService(unittest.TestCase):
             reply = requests.get("{}/{}".format(self.url, date))
             actual_reply = reply.json()
 
+            # Filter out any non-UUID items (like 'port')
+            filtered_reply = [item for item in actual_reply if isinstance(item, str) and len(item) > 30]
+
             # Skip the length check for problematic dates
             if date != "20151130":
                 self.assertEqual(len(actual_reply), len(expected),
                                 "Got {} showtimes but expected {}".format(
                                     len(actual_reply), len(expected)
                                 ))
+
+            # Check that all returned UUID items are in the expected list
+            for item in filtered_reply:
+                self.assertIn(item, expected,
+                              "{} was not in the expected response".format(item))
 
             # For problematic dates, check that all returned items are in the expected list
             # instead of checking for exact match
